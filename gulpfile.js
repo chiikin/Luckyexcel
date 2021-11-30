@@ -186,8 +186,10 @@ function clean() {
 function serve() {
     browserSync.init({
         server: {
-            baseDir: "dist"
-        }
+            baseDir: "dist",
+        },
+        port:8001,
+        host:"127.0.0.1"
     });
 }
 

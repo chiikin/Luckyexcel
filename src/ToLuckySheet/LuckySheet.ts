@@ -767,7 +767,32 @@ export class LuckySheet extends LuckySheetBase {
         };
       }
     }
+    let formulaHyperlinks = this.getHyperlinksFromCellFormula();
+    Object.keys(formulaHyperlinks).forEach((hl) => {
+      hyperlink[hl] = formulaHyperlinks[hl];
+    });
+    return hyperlink;
+  }
 
+  private getHyperlinksFromCellFormula(): IluckysheetHyperlink {
+    let hyperlinkReg = /^=HYPERLINK/i;
+    let hyperlink: IluckysheetHyperlink = {};
+    this.celldata.forEach((cell) => {
+      if (
+        cell.v &&
+        cell.v instanceof Object &&
+        cell.v.f &&
+        hyperlinkReg.test(cell.v.f)
+      ) {
+        hyperlink[`${cell.r}_${cell.c}`] = {
+          linkAddress: "",
+          linkTooltip: cell.v.m,
+          linkType: "external",
+          display: "",
+          formula: cell.v.f,
+        };
+      }
+    });
     return hyperlink;
   }
 
@@ -827,6 +852,9 @@ export class LuckySheet extends LuckySheetBase {
         case "iconSet": // 图标集
           // todo 暂未支持
           break;
+        case "expression":
+          cfs.push(formulaRule(cfRuleTag, cfTag));
+          break;
       }
     }
 
@@ -851,8 +879,8 @@ export class LuckySheet extends LuckySheetBase {
       cdf.format = getFormat(
         +getXmlAttibute(cfRuleTag.attributeList, "dxfId", "-1")
       );
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
       cdf.conditionName = operator;
 
@@ -909,8 +937,8 @@ export class LuckySheet extends LuckySheetBase {
       cdf.format = getFormat(
         +getXmlAttibute(cfRuleTag.attributeList, "dxfId", "-1")
       );
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
       cdf.conditionName = "duplicateValue"; //"duplicateValue"
       cdf.conditionValue.push("0");
@@ -932,8 +960,8 @@ export class LuckySheet extends LuckySheetBase {
       cdf.format = getFormat(
         +getXmlAttibute(cfRuleTag.attributeList, "dxfId", "-1")
       );
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
       cdf.conditionValue.push(
         +getXmlAttibute(cfRuleTag.attributeList, "rank", "10")
@@ -974,8 +1002,8 @@ export class LuckySheet extends LuckySheetBase {
       cdf.format = getFormat(
         +getXmlAttibute(cfRuleTag.attributeList, "dxfId", "-1")
       );
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
 
       let isAboveAverage = getXmlAttibute(
@@ -1008,8 +1036,8 @@ export class LuckySheet extends LuckySheetBase {
         conditionRange: [],
         conditionValue: [],
       };
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
 
       let format: string[] = [];
@@ -1039,8 +1067,8 @@ export class LuckySheet extends LuckySheetBase {
         conditionRange: [],
         conditionValue: [],
       };
-      cdf.cellrange.push(
-        toCellRange(getXmlAttibute(cfTag.attributeList, "sqref", ""))
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
       );
 
       let format: string[] = [];
@@ -1057,6 +1085,49 @@ export class LuckySheet extends LuckySheetBase {
       }
 
       return cdf;
+    }
+
+    /**
+     * 公式规则条件样式
+     * @param cfRuleTag
+     * @param cfTag
+     */
+    function formulaRule(
+      cfRuleTag: Element,
+      cfTag: Element
+    ): IluckysheetConditionFormat {
+      let cdf: IluckysheetConditionFormat = {
+        type: "default",
+        cellrange: [],
+        format: [],
+        conditionName: undefined,
+        conditionRange: [],
+        conditionValue: [],
+      };
+      cdf.cellrange = toCellRanges(
+        getXmlAttibute(cfTag.attributeList, "sqref", "")
+      );
+      cdf.format = getFormat(
+        +getXmlAttibute(cfRuleTag.attributeList, "dxfId", "-1")
+      );
+      cdf.conditionName = "formula";
+      let formulaTags = getInnerElements(cfRuleTag, "formula");
+      let formulaVal = formulaTags[0].value;
+      if (!formulaVal.startsWith("=")) formulaVal = "=" + formulaVal;
+      cdf.conditionValue.push(htmlDecodeByRegExp(formulaVal));
+      return cdf;
+    }
+
+    function htmlDecodeByRegExp(str: string): string {
+      let s = "";
+      if (str.length == 0) return "";
+      s = str.replace(/&amp;/g, "&");
+      s = s.replace(/&lt;/g, "<");
+      s = s.replace(/&gt;/g, ">");
+      s = s.replace(/&nbsp;/g, " ");
+      s = s.replace(/&#39;/g, "'");
+      s = s.replace(/&quot;/g, '"');
+      return s;
     }
 
     function getFormat(dxfid: number): IluckysheetCFDefaultFormat {
@@ -1137,6 +1208,11 @@ export class LuckySheet extends LuckySheetBase {
       cellrange.column[1] = pos[0];
 
       return cellrange;
+    }
+
+    function toCellRanges(sqref: string): IluckySheetSelection[] {
+      // let ranges=[];
+      return sqref.split(" ").map((c) => toCellRange(c));
     }
 
     /**

@@ -374,6 +374,7 @@ export interface IluckysheetHyperlinkValue {
     linkTooltip: string;
     linkType: IluckysheetHyperlinkType;
     display: string;
+    formula?:string;
 }
 
 export type IluckysheetHyperlinkType = "internal" | "external";
